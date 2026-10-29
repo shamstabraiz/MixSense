@@ -1,0 +1,86 @@
+name: Build MixSense VST3 (Windows & Linux)
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build-windows:
+    name: Build Windows VST3 & Standalone
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Initialize MSVC Developer Environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Configure CMake (MSVC + Ninja)
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Release
+        run: |
+          ninja -C build
+
+      - name: Run Automated Test Suite
+        run: |
+          ./build/MixSenseTests.exe
+
+      - name: Package Windows Artifacts
+        run: |
+          mkdir dist
+          Compress-Archive -Path build/MixSense_artefacts/Release/VST3/MixSense.vst3 -DestinationPath dist/MixSense_Windows_VST3.zip
+          Compress-Archive -Path build/MixSense_artefacts/Release/Standalone/MixSense.exe -DestinationPath dist/MixSense_Windows_Standalone.zip
+
+      - name: Upload Windows VST3
+        uses: actions/upload-artifact@v4
+        with:
+          name: MixSense-Windows-VST3
+          path: dist/MixSense_Windows_VST3.zip
+
+  build-linux:
+    name: Build Linux VST3 & Standalone
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Linux Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libasound2-dev libfreetype6-dev libfontconfig1-dev libgl1-mesa-dev libx11-dev libxcomposite-dev libxcursor-dev libxinerama-dev libxrandr-dev ninja-build
+
+      - name: Configure CMake (Ninja)
+        run: |
+          cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build Release
+        run: |
+          ninja -C build
+
+      - name: Run Automated Tests
+        run: |
+          ./build/MixSenseTests
+
+      - name: Package Linux Artifacts
+        run: |
+          mkdir dist
+          tar -czf dist/MixSense_Linux_VST3.tar.gz -C build/MixSense_artefacts/Release/VST3 MixSense.vst3
+          tar -czf dist/MixSense_Linux_Standalone.tar.gz -C build/MixSense_artefacts/Release/Standalone MixSense
+
+      - name: Upload Linux Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: MixSense-Linux-Binaries
+          path: dist/*.tar.gz
+
